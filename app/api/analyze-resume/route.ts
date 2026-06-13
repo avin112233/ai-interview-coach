@@ -77,12 +77,156 @@ function calculateMatchScore(resumeSkills: string[], jdSkills: string[]) {
   return Math.round((matchedSkills.length / jdSkills.length) * 100);
 }
 
+function calculateResumeScore(resumeText: string, resumeSkills: string[]) {
+  let score = 40;
+
+  score += Math.min(resumeSkills.length * 3, 30);
+
+  if (resumeText.length > 2000) score += 8;
+  if (resumeText.length > 4000) score += 7;
+
+  if (resumeText.toLowerCase().includes("project")) score += 5;
+  if (resumeText.toLowerCase().includes("experience")) score += 5;
+  if (resumeText.toLowerCase().includes("certification")) score += 3;
+  if (/\d+%|\d+\s?x|\d+\+/.test(resumeText)) score += 7;
+
+  return Math.min(score, 95);
+}
+
+function generateStrengths(resumeSkills: string[]) {
+  const strengths = [];
+
+  if (resumeSkills.length > 0) {
+    strengths.push(
+      `Strong technical skill coverage including ${resumeSkills
+        .slice(0, 6)
+        .join(", ")}.`
+    );
+  }
+
+  if (
+    resumeSkills.includes("python") ||
+    resumeSkills.includes("sql")
+  ) {
+    strengths.push(
+      "Good foundation in core data and programming skills."
+    );
+  }
+
+  if (
+    resumeSkills.includes("machine learning") ||
+    resumeSkills.includes("xgboost") ||
+    resumeSkills.includes("deep learning")
+  ) {
+    strengths.push(
+      "Relevant machine learning exposure for data science roles."
+    );
+  }
+
+  if (
+    resumeSkills.includes("fastapi") ||
+    resumeSkills.includes("docker") ||
+    resumeSkills.includes("kubernetes")
+  ) {
+    strengths.push(
+      "Shows production-oriented engineering and deployment knowledge."
+    );
+  }
+
+  return strengths.length > 0
+    ? strengths
+    : ["Resume contains experience, but technical strengths are not clearly highlighted."];
+}
+
+function generateWeaknesses(resumeText: string, missingJobSkills: string[]) {
+  const weaknesses = [];
+
+  if (!/\d+%|\d+\s?x|\d+\+/.test(resumeText)) {
+    weaknesses.push(
+      "Resume should include more quantified achievements and measurable impact."
+    );
+  }
+
+  if (missingJobSkills.length > 0) {
+    weaknesses.push(
+      `Missing important JD skills such as ${missingJobSkills
+        .slice(0, 4)
+        .join(", ")}.`
+    );
+  }
+
+  weaknesses.push(
+    "Project bullets can be improved by clearly explaining problem, approach, tools, and outcome."
+  );
+
+  return weaknesses;
+}
+
+function generateInterviewQuestions(resumeSkills: string[]) {
+  const questions = [
+    "Explain your most important project end to end.",
+    "How did you measure the success of your solution?",
+    "What challenges did you face and how did you solve them?",
+  ];
+
+  resumeSkills.slice(0, 5).forEach((skill) => {
+    questions.push(`How have you used ${skill} in your project?`);
+  });
+
+  return questions;
+}
+
+function generateMockInterview(resumeSkills: string[]) {
+  return {
+    technicalQuestions: [
+      ...resumeSkills.slice(0, 5).map(
+        (skill) => `Explain ${skill} and how you used it in your work.`
+      ),
+      "How do you evaluate model performance?",
+      "How do you handle overfitting?",
+    ],
+
+    projectQuestions: [
+      "Explain your main project architecture end to end.",
+      "What was your exact contribution in the project?",
+      "What business problem did your project solve?",
+      "What metrics did you use to measure success?",
+      "How would you improve this project further?",
+    ],
+
+    hrQuestions: [
+      "Tell me about yourself.",
+      "Why are you looking for a job change?",
+      "What are your strengths and weaknesses?",
+      "Describe a time you handled pressure.",
+      "Where do you see yourself in the next 3 years?",
+    ],
+
+    systemDesignQuestions: [
+      "Design a resume analyzer system.",
+      "Design a real-time ML inference system.",
+      "How would you scale an API for thousands of users?",
+      "How would you monitor a production ML model?",
+      "How would you design a RAG-based chatbot?",
+    ],
+
+    codingQuestions: [
+      "Find the second highest number in an array.",
+      "Count word frequency in a string.",
+      "Find duplicate elements in a list.",
+      "Implement an LRU cache.",
+      "Write SQL to find the second highest salary.",
+    ],
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
 
     const file = formData.get("resume") as File;
-    const jobDescription = (formData.get("jobDescription") as string) || "";
+    const jobDescription =
+      (formData.get("jobDescription") as string) || "";
 
     if (!file) {
       return NextResponse.json(
@@ -107,117 +251,74 @@ export async function POST(req: NextRequest) {
       (skill) => !resumeSkills.includes(skill)
     );
 
-    const jobMatchScore = calculateMatchScore(resumeSkills, jdSkills);
-
-    const resumeScore = Math.min(
-      95,
-      Math.max(45, 40 + resumeSkills.length * 3)
+    const jobMatchScore = calculateMatchScore(
+      resumeSkills,
+      jdSkills
     );
 
-    const mockResult = {
+    const resumeScore = calculateResumeScore(
+      resumeText,
+      resumeSkills
+    );
+
+    const analysisResult = {
       score: resumeScore,
 
       summary:
-        "The resume shows relevant technical experience based on the extracted skills, projects, and professional background.",
-
-      strengths: [
         resumeSkills.length > 0
-          ? `Strong technical coverage with skills like ${resumeSkills
-              .slice(0, 5)
-              .join(", ")}`
-          : "Resume has some relevant experience but skills are not clearly detected",
-        "Resume includes project and professional experience sections",
-        "Candidate profile appears suitable for data, AI, or software-related roles",
-      ],
+          ? `This resume shows experience in ${resumeSkills
+              .slice(0, 6)
+              .join(", ")}. The candidate appears suitable for roles involving data, AI, analytics, or software engineering depending on the job description.`
+          : "The resume was parsed successfully, but clear technical keywords were limited.",
 
-      weaknesses: [
-        "Achievements can be improved with stronger measurable impact",
-        "Project descriptions should include clearer business outcomes",
-        "Resume can be optimized further for ATS keyword matching",
-      ],
+      strengths: generateStrengths(resumeSkills),
+
+      weaknesses: generateWeaknesses(
+        resumeText,
+        missingJobSkills
+      ),
 
       missingSkills:
         missingJobSkills.length > 0
           ? missingJobSkills
-          : ["No major missing skills detected from the provided JD"],
+          : ["No major missing JD skills detected."],
 
       atsTips: [
-        "Add exact keywords from the job description naturally into skills and projects",
-        "Use measurable impact such as accuracy improvement, latency reduction, or cost savings",
-        "Keep bullet points action-oriented and aligned with the target role",
+        "Add exact keywords from the target job description naturally in the resume.",
+        "Add measurable impact such as accuracy improvement, cost saving, latency reduction, or revenue impact.",
+        "Use strong action verbs and keep project bullets result-oriented.",
       ],
 
-      interviewQuestions: [
-        "Explain your most important project end to end.",
-        "How did you measure the success of your ML or AI solution?",
-        "How would you deploy and monitor this system in production?",
-      ],
+      interviewQuestions:
+        generateInterviewQuestions(resumeSkills),
 
       jobMatchScore,
 
       matchedSkills:
         matchedSkills.length > 0
           ? matchedSkills
-          : ["No strong JD skill matches detected"],
+          : ["No strong JD skill matches detected."],
 
       missingJobSkills:
         missingJobSkills.length > 0
           ? missingJobSkills
-          : ["No major JD skill gaps detected"],
+          : ["No major JD skill gaps detected."],
 
       jdSuggestions: [
-        jobMatchScore < 60
-          ? "Resume needs more JD-specific keywords to improve match score"
-          : "Resume has decent alignment with the job description",
-        "Add missing JD skills in projects or skills section if you genuinely have experience",
-        "Rewrite project bullets to reflect the responsibilities mentioned in the JD",
+        jobMatchScore >= 75
+          ? "Resume has strong alignment with the job description."
+          : jobMatchScore >= 50
+          ? "Resume has moderate alignment. Add missing JD keywords where relevant."
+          : "Resume needs stronger alignment with the job description.",
+        "Update project descriptions to reflect responsibilities mentioned in the JD.",
+        "Add missing skills only if you genuinely have experience with them.",
       ],
 
-      mockInterview: {
-        technicalQuestions: [
-          "Explain the difference between supervised and unsupervised learning.",
-          "How would you handle imbalanced data in a fraud detection system?",
-          "Explain how XGBoost works internally.",
-          "What is feature engineering and why is it important?",
-          "How do you evaluate a machine learning model?",
-        ],
-
-        projectQuestions: [
-          "Explain your most important project end to end.",
-          "What problem were you solving in your fraud detection project?",
-          "What challenges did you face and how did you solve them?",
-          "How did you measure business impact?",
-          "How would you improve this project further?",
-        ],
-
-        hrQuestions: [
-          "Tell me about yourself.",
-          "Why are you looking for a job change?",
-          "What are your strengths and weaknesses?",
-          "Describe a time you handled pressure.",
-          "Where do you see yourself in the next 3 years?",
-        ],
-
-        systemDesignQuestions: [
-          "Design a real-time fraud detection system.",
-          "Design an AI resume analyzer system.",
-          "How would you scale an ML inference API?",
-          "How would you design a RAG-based chatbot?",
-          "How would you monitor model performance in production?",
-        ],
-
-        codingQuestions: [
-          "Find the second highest number in an array.",
-          "Write a function to count word frequency in a string.",
-          "Implement an LRU cache.",
-          "Find duplicate elements in a list.",
-          "Write SQL to find the second highest salary.",
-        ],
-      },
+      mockInterview: generateMockInterview(resumeSkills),
     };
 
     return NextResponse.json({
-      result: JSON.stringify(mockResult),
+      result: JSON.stringify(analysisResult),
     });
   } catch (error: any) {
     console.error("Resume Analysis Error:", error);

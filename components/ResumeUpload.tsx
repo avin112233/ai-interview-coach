@@ -31,15 +31,17 @@ type Analysis = {
   matchedSkills: string[];
   missingJobSkills: string[];
   jdSuggestions: string[];
-  mockInterview: MockInterview;
 };
 
 export default function ResumeUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [showMockInterview, setShowMockInterview] = useState(false);
+  const [mockInterview, setMockInterview] = useState<MockInterview | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [showMockInterview, setShowMockInterview] = useState(false);
   const [error, setError] = useState("");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,6 +50,7 @@ export default function ResumeUpload() {
     if (selectedFile) {
       setFile(selectedFile);
       setAnalysis(null);
+      setMockInterview(null);
       setShowMockInterview(false);
       setError("");
     }
@@ -63,6 +66,7 @@ export default function ResumeUpload() {
       setLoading(true);
       setError("");
       setAnalysis(null);
+      setMockInterview(null);
       setShowMockInterview(false);
 
       const formData = new FormData();
@@ -90,10 +94,52 @@ export default function ResumeUpload() {
     }
   };
 
+  const handleGenerateMockInterview = async () => {
+    if (!analysis) {
+      setError("Please analyze the resume first.");
+      return;
+    }
+
+    try {
+      setInterviewLoading(true);
+      setError("");
+
+      const response = await fetch("/api/mock-interview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          summary: analysis.summary,
+          matchedSkills: analysis.matchedSkills,
+          missingSkills: analysis.missingSkills,
+          strengths: analysis.strengths,
+          weaknesses: analysis.weaknesses,
+          jobDescription,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.result || "Failed to generate mock interview.");
+      }
+
+      setMockInterview(data.mockInterview);
+      setShowMockInterview(true);
+    } catch (error: any) {
+      console.error(error);
+      setError(error?.message || "Failed to generate mock interview.");
+    } finally {
+      setInterviewLoading(false);
+    }
+  };
+
   const handleReset = () => {
     setFile(null);
     setJobDescription("");
     setAnalysis(null);
+    setMockInterview(null);
     setShowMockInterview(false);
     setError("");
   };
@@ -145,12 +191,12 @@ export default function ResumeUpload() {
     addSection("JD Suggestions", analysis.jdSuggestions);
     addSection("Interview Questions", analysis.interviewQuestions);
 
-    if (showMockInterview) {
-      addSection("Technical Questions", analysis.mockInterview.technicalQuestions);
-      addSection("Project Questions", analysis.mockInterview.projectQuestions);
-      addSection("HR Questions", analysis.mockInterview.hrQuestions);
-      addSection("System Design Questions", analysis.mockInterview.systemDesignQuestions);
-      addSection("Coding Questions", analysis.mockInterview.codingQuestions);
+    if (mockInterview) {
+      addSection("Technical Questions", mockInterview.technicalQuestions);
+      addSection("Project Questions", mockInterview.projectQuestions);
+      addSection("HR Questions", mockInterview.hrQuestions);
+      addSection("System Design Questions", mockInterview.systemDesignQuestions);
+      addSection("Coding Questions", mockInterview.codingQuestions);
     }
 
     doc.save("resume-analysis-report.pdf");
@@ -181,7 +227,7 @@ export default function ResumeUpload() {
 
             <p className="text-gray-600 mb-8">
               Upload your resume, paste a job description, and get ATS score,
-              skill gap analysis, and interview questions.
+              skill gap analysis, and dynamic interview questions.
             </p>
           </div>
 
@@ -259,9 +305,11 @@ export default function ResumeUpload() {
             <div className="flex justify-center mb-4">
               <Spinner large />
             </div>
+
             <h2 className="text-2xl font-bold">
               Analyzing your resume...
             </h2>
+
             <p className="text-gray-600 mt-2">
               Extracting skills, calculating JD match, and preparing feedback.
             </p>
@@ -278,13 +326,24 @@ export default function ResumeUpload() {
           <div className="mt-8 grid gap-6">
             <div className="flex flex-col sm:flex-row gap-4 justify-end">
               <button
-                onClick={() => setShowMockInterview(!showMockInterview)}
-                className="px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                onClick={handleGenerateMockInterview}
+                disabled={interviewLoading}
+                className="px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2"
               >
-                {showMockInterview
-                  ? "Hide Mock Interview"
+                {interviewLoading && <Spinner />}
+                {interviewLoading
+                  ? "Generating..."
                   : "Generate Mock Interview"}
               </button>
+
+              {mockInterview && (
+                <button
+                  onClick={() => setShowMockInterview(!showMockInterview)}
+                  className="px-6 py-3 rounded-lg border border-gray-300 hover:bg-gray-100"
+                >
+                  {showMockInterview ? "Hide Questions" : "Show Questions"}
+                </button>
+              )}
 
               <button
                 onClick={downloadReport}
@@ -313,27 +372,31 @@ export default function ResumeUpload() {
             <Card title="Missing JD Skills" items={analysis.missingJobSkills} />
             <Card title="JD Improvement Suggestions" items={analysis.jdSuggestions} />
 
-            {showMockInterview && (
+            {mockInterview && showMockInterview && (
               <>
                 <Card
                   title="Technical Questions"
-                  items={analysis.mockInterview.technicalQuestions}
+                  items={mockInterview.technicalQuestions}
                 />
+
                 <Card
                   title="Project Questions"
-                  items={analysis.mockInterview.projectQuestions}
+                  items={mockInterview.projectQuestions}
                 />
+
                 <Card
                   title="HR Questions"
-                  items={analysis.mockInterview.hrQuestions}
+                  items={mockInterview.hrQuestions}
                 />
+
                 <Card
                   title="System Design Questions"
-                  items={analysis.mockInterview.systemDesignQuestions}
+                  items={mockInterview.systemDesignQuestions}
                 />
+
                 <Card
                   title="Coding Questions"
-                  items={analysis.mockInterview.codingQuestions}
+                  items={mockInterview.codingQuestions}
                 />
               </>
             )}
@@ -354,16 +417,25 @@ function Spinner({ large = false }: { large?: boolean }) {
   );
 }
 
-function CircularScoreCard({ title, score }: { title: string; score: number }) {
+function CircularScoreCard({
+  title,
+  score,
+}: {
+  title: string;
+  score: number;
+}) {
   const radius = 60;
   const stroke = 12;
   const normalizedRadius = radius - stroke / 2;
   const circumference = 2 * Math.PI * normalizedRadius;
-  const strokeDashoffset = circumference - (score / 100) * circumference;
+  const strokeDashoffset =
+    circumference - (score / 100) * circumference;
 
   return (
     <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-      <h2 className="text-2xl font-bold mb-4">{title}</h2>
+      <h2 className="text-2xl font-bold mb-4">
+        {title}
+      </h2>
 
       <div className="relative">
         <svg height={radius * 2} width={radius * 2}>
@@ -391,12 +463,18 @@ function CircularScoreCard({ title, score }: { title: string; score: number }) {
         </svg>
 
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-3xl font-bold">{score}%</span>
+          <span className="text-3xl font-bold">
+            {score}%
+          </span>
         </div>
       </div>
 
       <p className="mt-4 text-gray-600">
-        {score >= 80 ? "Excellent" : score >= 60 ? "Good" : "Needs Improvement"}
+        {score >= 80
+          ? "Excellent"
+          : score >= 60
+          ? "Good"
+          : "Needs Improvement"}
       </p>
     </div>
   );
@@ -411,7 +489,9 @@ function ChartCard({
 }) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-2xl font-bold mb-4">{title}</h2>
+      <h2 className="text-2xl font-bold mb-4">
+        {title}
+      </h2>
 
       <div className="w-full h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -419,7 +499,11 @@ function ChartCard({
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip />
-            <Bar dataKey="value" fill="#111827" radius={[8, 8, 0, 0]} />
+            <Bar
+              dataKey="value"
+              fill="#111827"
+              radius={[8, 8, 0, 0]}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -427,10 +511,18 @@ function ChartCard({
   );
 }
 
-function Card({ title, items }: { title: string; items: string[] }) {
+function Card({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-2xl font-bold mb-3">{title}</h2>
+      <h2 className="text-2xl font-bold mb-3">
+        {title}
+      </h2>
 
       <ul className="list-disc pl-6 space-y-2">
         {items.map((item, index) => (
