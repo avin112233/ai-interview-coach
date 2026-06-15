@@ -38,10 +38,9 @@ export default function ResumeUpload() {
   const [jobDescription, setJobDescription] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [mockInterview, setMockInterview] = useState<MockInterview | null>(null);
-
+  const [showMockInterview, setShowMockInterview] = useState(false);
   const [loading, setLoading] = useState(false);
   const [interviewLoading, setInterviewLoading] = useState(false);
-  const [showMockInterview, setShowMockInterview] = useState(false);
   const [error, setError] = useState("");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,7 +86,6 @@ export default function ResumeUpload() {
       const parsed = JSON.parse(data.result);
       setAnalysis(parsed);
     } catch (error: any) {
-      console.error(error);
       setError(error?.message || "Something went wrong while analyzing resume.");
     } finally {
       setLoading(false);
@@ -103,6 +101,8 @@ export default function ResumeUpload() {
     try {
       setInterviewLoading(true);
       setError("");
+      setMockInterview(null);
+      setShowMockInterview(false);
 
       const response = await fetch("/api/mock-interview", {
         method: "POST",
@@ -128,7 +128,6 @@ export default function ResumeUpload() {
       setMockInterview(data.mockInterview);
       setShowMockInterview(true);
     } catch (error: any) {
-      console.error(error);
       setError(error?.message || "Failed to generate mock interview.");
     } finally {
       setInterviewLoading(false);
@@ -154,7 +153,6 @@ export default function ResumeUpload() {
       doc.setFontSize(16);
       doc.text(title, 15, y);
       y += 8;
-
       doc.setFontSize(11);
 
       items.forEach((item) => {
@@ -221,10 +219,7 @@ export default function ResumeUpload() {
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow p-8">
           <div className="text-center">
-            <h1 className="text-4xl font-bold mb-3">
-              AI Resume Analyzer
-            </h1>
-
+            <h1 className="text-4xl font-bold mb-3">AI Resume Analyzer</h1>
             <p className="text-gray-600 mb-8">
               Upload your resume, paste a job description, and get ATS score,
               skill gap analysis, and dynamic interview questions.
@@ -233,9 +228,7 @@ export default function ResumeUpload() {
 
           <div className="grid md:grid-cols-2 gap-6">
             <div className="border-2 border-dashed rounded-xl p-6 text-center">
-              <h2 className="text-xl font-semibold mb-3">
-                Upload Resume
-              </h2>
+              <h2 className="text-xl font-semibold mb-3">Upload Resume</h2>
 
               <input
                 type="file"
@@ -256,9 +249,7 @@ export default function ResumeUpload() {
             </div>
 
             <div>
-              <h2 className="text-xl font-semibold mb-3">
-                Job Description
-              </h2>
+              <h2 className="text-xl font-semibold mb-3">Job Description</h2>
 
               <textarea
                 value={jobDescription}
@@ -266,12 +257,6 @@ export default function ResumeUpload() {
                 placeholder="Paste job description here..."
                 className="w-full min-h-44 border rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-black"
               />
-
-              {!jobDescription && (
-                <p className="mt-2 text-sm text-gray-500">
-                  Optional, but recommended for JD match score.
-                </p>
-              )}
             </div>
           </div>
 
@@ -300,28 +285,6 @@ export default function ResumeUpload() {
           </div>
         </div>
 
-        {loading && (
-          <div className="mt-8 bg-white rounded-xl shadow p-8 text-center">
-            <div className="flex justify-center mb-4">
-              <Spinner large />
-            </div>
-
-            <h2 className="text-2xl font-bold">
-              Analyzing your resume...
-            </h2>
-
-            <p className="text-gray-600 mt-2">
-              Extracting skills, calculating JD match, and preparing feedback.
-            </p>
-          </div>
-        )}
-
-        {!analysis && !loading && (
-          <div className="mt-8 bg-white rounded-xl shadow p-8 text-center text-gray-600">
-            Upload a PDF resume and click Analyze Resume to view your dashboard.
-          </div>
-        )}
-
         {analysis && (
           <div className="mt-8 grid gap-6">
             <div className="flex flex-col sm:flex-row gap-4 justify-end">
@@ -331,9 +294,7 @@ export default function ResumeUpload() {
                 className="px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2"
               >
                 {interviewLoading && <Spinner />}
-                {interviewLoading
-                  ? "Generating..."
-                  : "Generate Mock Interview"}
+                {interviewLoading ? "Generating..." : "Generate Mock Interview"}
               </button>
 
               {mockInterview && (
@@ -374,30 +335,11 @@ export default function ResumeUpload() {
 
             {mockInterview && showMockInterview && (
               <>
-                <Card
-                  title="Technical Questions"
-                  items={mockInterview.technicalQuestions}
-                />
-
-                <Card
-                  title="Project Questions"
-                  items={mockInterview.projectQuestions}
-                />
-
-                <Card
-                  title="HR Questions"
-                  items={mockInterview.hrQuestions}
-                />
-
-                <Card
-                  title="System Design Questions"
-                  items={mockInterview.systemDesignQuestions}
-                />
-
-                <Card
-                  title="Coding Questions"
-                  items={mockInterview.codingQuestions}
-                />
+                <Card title="Technical Questions" items={mockInterview.technicalQuestions} />
+                <Card title="Project Questions" items={mockInterview.projectQuestions} />
+                <Card title="HR Questions" items={mockInterview.hrQuestions} />
+                <Card title="System Design Questions" items={mockInterview.systemDesignQuestions} />
+                <Card title="Coding Questions" items={mockInterview.codingQuestions} />
               </>
             )}
           </div>
@@ -417,25 +359,16 @@ function Spinner({ large = false }: { large?: boolean }) {
   );
 }
 
-function CircularScoreCard({
-  title,
-  score,
-}: {
-  title: string;
-  score: number;
-}) {
+function CircularScoreCard({ title, score }: { title: string; score: number }) {
   const radius = 60;
   const stroke = 12;
   const normalizedRadius = radius - stroke / 2;
   const circumference = 2 * Math.PI * normalizedRadius;
-  const strokeDashoffset =
-    circumference - (score / 100) * circumference;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
     <div className="bg-white rounded-xl shadow p-6 flex flex-col items-center">
-      <h2 className="text-2xl font-bold mb-4">
-        {title}
-      </h2>
+      <h2 className="text-2xl font-bold mb-4">{title}</h2>
 
       <div className="relative">
         <svg height={radius * 2} width={radius * 2}>
@@ -463,19 +396,9 @@ function CircularScoreCard({
         </svg>
 
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-3xl font-bold">
-            {score}%
-          </span>
+          <span className="text-3xl font-bold">{score}%</span>
         </div>
       </div>
-
-      <p className="mt-4 text-gray-600">
-        {score >= 80
-          ? "Excellent"
-          : score >= 60
-          ? "Good"
-          : "Needs Improvement"}
-      </p>
     </div>
   );
 }
@@ -489,9 +412,7 @@ function ChartCard({
 }) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-2xl font-bold mb-4">
-        {title}
-      </h2>
+      <h2 className="text-2xl font-bold mb-4">{title}</h2>
 
       <div className="w-full h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -499,11 +420,7 @@ function ChartCard({
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip />
-            <Bar
-              dataKey="value"
-              fill="#111827"
-              radius={[8, 8, 0, 0]}
-            />
+            <Bar dataKey="value" fill="#111827" radius={[8, 8, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -511,18 +428,10 @@ function ChartCard({
   );
 }
 
-function Card({
-  title,
-  items,
-}: {
-  title: string;
-  items: string[];
-}) {
+function Card({ title, items }: { title: string; items: string[] }) {
   return (
     <div className="bg-white rounded-xl shadow p-6">
-      <h2 className="text-2xl font-bold mb-3">
-        {title}
-      </h2>
+      <h2 className="text-2xl font-bold mb-3">{title}</h2>
 
       <ul className="list-disc pl-6 space-y-2">
         {items.map((item, index) => (

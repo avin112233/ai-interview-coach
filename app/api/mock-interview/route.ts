@@ -14,6 +14,10 @@ function cleanJson(text: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY is missing");
+    }
+
     const body = await req.json();
 
     const summary = body.summary || "";
@@ -23,10 +27,14 @@ export async function POST(req: NextRequest) {
     const weaknesses = body.weaknesses || [];
     const jobDescription = body.jobDescription || "";
 
+    const randomSeed = `${Date.now()}-${Math.random()}`;
+
     const prompt = `
 You are a senior technical interviewer.
 
-Generate fresh interview questions every time.
+Generate fresh, unique interview questions.
+Do not repeat generic questions.
+Use this random seed to vary questions: ${randomSeed}
 
 Candidate Summary:
 ${summary}
@@ -47,72 +55,33 @@ Job Description:
 ${jobDescription}
 
 Return ONLY valid JSON.
+No markdown.
+No explanation.
 
+Format:
 {
-  "technicalQuestions": [
-    "question 1",
-    "question 2",
-    "question 3",
-    "question 4",
-    "question 5"
-  ],
-  "projectQuestions": [
-    "question 1",
-    "question 2",
-    "question 3",
-    "question 4",
-    "question 5"
-  ],
-  "hrQuestions": [
-    "question 1",
-    "question 2",
-    "question 3",
-    "question 4",
-    "question 5"
-  ],
-  "systemDesignQuestions": [
-    "question 1",
-    "question 2",
-    "question 3",
-    "question 4",
-    "question 5"
-  ],
-  "codingQuestions": [
-    "question 1",
-    "question 2",
-    "question 3",
-    "question 4",
-    "question 5"
-  ]
+  "technicalQuestions": ["q1", "q2", "q3", "q4", "q5"],
+  "projectQuestions": ["q1", "q2", "q3", "q4", "q5"],
+  "hrQuestions": ["q1", "q2", "q3", "q4", "q5"],
+  "systemDesignQuestions": ["q1", "q2", "q3", "q4", "q5"],
+  "codingQuestions": ["q1", "q2", "q3", "q4", "q5"]
 }
 `;
 
-    const completion =
-      await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 1,
+    });
 
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-
-        temperature: 0.9,
-      });
-
-    const text =
-      completion.choices[0]?.message?.content || "{}";
-
-    const cleaned = cleanJson(text);
-
-    const parsed = JSON.parse(cleaned);
+    const text = completion.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(cleanJson(text));
 
     return NextResponse.json({
       mockInterview: parsed,
     });
   } catch (error: any) {
-    console.error("Groq Error:", error);
+    console.error("Groq Mock Interview Error:", error);
 
     return NextResponse.json(
       {
